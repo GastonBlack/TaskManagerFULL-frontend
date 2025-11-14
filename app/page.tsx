@@ -1,66 +1,153 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import SearchBar from "./Components/SearchBar";
+import "./globals.css";
+import { useState, useEffect } from "react";
+import { Task } from "./Components/Types/Task";
+import TaskGrid from "./ui/TaskGrid";
+import HeaderButtons from "./ui/HeaderButtons";
+import NoteModal from "./ui/NoteModal";
+import {
+  getAllTasks,
+  addTask,
+  deleteAllTasks,
+  deleteTask,
+  loadWelcomeNote,
+  loadTestNotes,
+  toggleTask,
+  updateTask,
+} from "./services/tasksService";
+import sortTasks from "./services/helpers";
 
 export default function Home() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [searchInput, setSearchInput] = useState<string>("");
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [taskBeingEdited, setTaskBeingEdited] = useState<Task | null>(null);
+  const [showNoteModal, setShowNoteModal] = useState<boolean>(false);
+
+  // Inicializacion
+  useEffect(() => {
+    async function init() {
+      try {
+        const data = await getAllTasks();
+
+        if (data.length === 0) {
+          const welcome = await loadWelcomeNote();
+          setTasks([welcome]);
+        } else {
+          setTasks(sortTasks(data));
+        }
+      } catch {
+        setTasks([
+          {
+            id: 0,
+            content: "No se pudo conectar con el servidor.",
+            deadline: null,
+            isCompleted: false,
+          },
+        ]);
+      }
+    }
+
+    init();
+  }, []);
+
+  // Cargar notas de prueba
+  async function handleLoadTestNotes() {
+    const testNotes = await loadTestNotes();
+    setTasks(sortTasks(testNotes));
+  }
+
+  // Agregar nueva nota
+  async function handleAddNote(content: string, deadline: Date | null) {
+    const newTask = { content, deadline, isCompleted: false };
+    const savedTask = await addTask(newTask);
+    setTasks((prev) => sortTasks([...prev, savedTask]));
+  }
+
+  // Eliminar una nota
+  async function handleDelete(id: number) {
+    await deleteTask(id);
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  // Eliminar todas las notas
+  async function handleDeleteNotes() {
+    await deleteAllTasks();
+    const welcome = await loadWelcomeNote();
+    setTasks([welcome]);
+  }
+
+  // Marcar / desmarcar como completada
+  async function handleToggleDone(id: number) {
+    const updatedTask = await toggleTask(id);
+    setTasks((prev) =>
+      sortTasks(prev.map((t) => (t.id === id ? updatedTask : t)))
+    );
+  }
+
+  // Editar nota
+  async function handleModify(content: string, deadline: Date | null) {
+    if (!taskBeingEdited) return;
+
+    const updatedTask = {
+      ...taskBeingEdited,
+      content,
+      deadline,
+    };
+
+    const saved = await updateTask(updatedTask);
+    setTasks((prev) =>
+      sortTasks(prev.map((t) => (t.id === updatedTask.id ? saved : t)))
+    );
+
+    setTaskBeingEdited(null);
+    setIsEditing(false);
+    setShowNoteModal(false);
+  }
+
+  // Filtrado
+  const filteredTasks = tasks.filter((task) =>
+    task.content.toLowerCase().includes(searchInput.toLowerCase())
+  );
+
+  function openAddModal() {
+    setTaskBeingEdited(null);
+    setIsEditing(false);
+    setShowNoteModal(true);
+  }
+
+  function openEditModal(task: Task) {
+    setTaskBeingEdited(task);
+    setIsEditing(true);
+    setShowNoteModal(true);
+  }
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main className="flex flex-col h-screen w-screen items-center pt-4 px-8 bg-gray-200 m-0">
+      <SearchBar searchInput={searchInput} setSearchInput={setSearchInput} />
+
+      <HeaderButtons
+        onShowNoteModal={openAddModal}
+        onDeleteNotes={handleDeleteNotes}
+        onLoadTestNotes={handleLoadTestNotes}
+      />
+
+      <TaskGrid
+        tasks={filteredTasks}
+        onDelete={handleDelete}
+        onModify={openEditModal}
+        onDone={handleToggleDone}
+      />
+
+      {showNoteModal && (
+        <NoteModal
+          task={taskBeingEdited || undefined}
+          onAdd={isEditing ? handleModify : handleAddNote}
+          isEditing={isEditing}
+          onShowNoteModal={setShowNoteModal}
         />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      )}
+    </main>
   );
 }
