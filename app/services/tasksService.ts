@@ -1,6 +1,7 @@
 import { error } from "console";
 import { Task } from "../Components/Types/Task";
-const API_URL = "http://localhost:5062/api/tasks";
+
+const API_URL = "https://taskmanagerfull-backend.onrender.com/api/Tasks";
 
 export async function getAllTasks() {
     const response = await fetch(API_URL);
